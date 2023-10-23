@@ -3,7 +3,7 @@ server:
 
 endpoints:
   mira:
-    url: "http://127.0.0.1:8090/v1/order-terminal"
+    url: "http://127.0.0.1:8090/v1/mira"
     timeout: 2
 
 logging:

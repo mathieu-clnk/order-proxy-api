@@ -13,7 +13,7 @@ import java.util.HashMap;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("/api/mira/orders")
+@RequestMapping("/api/v1/mira/orders")
 @RequiredArgsConstructor
 public class MiraController {
     private final MiraSubOrderService miraSubOrderService;

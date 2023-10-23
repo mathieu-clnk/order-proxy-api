@@ -79,21 +79,15 @@ public class MiraSubOrderService implements ProviderSubOrderService {
     @RateLimiter(name = CB_ORDER_CONFIG, fallbackMethod = "setOrderFallback")
     @Override
     public Mono<HashMap> setOrder(Optional<List<HashMap>> subOrder) {
-        //log.info(String.format("Request received getOrderById with the id %s",id.get()));
-        // If the backend is not the same, then the health check shall be different.
+
         if(MiraHealth.status.equals(MiraHealth.RUNNING) ||
                 MiraHealth.failedTime.before(Timestamp.from(Instant.now().minusMillis(TimeUnit.MINUTES.toMillis(timeout))))) {
-            //String url = orderEndpoint + "/get-by-id?orderId=" + id.get();
             String url = orderEndpoint + "/set-order";
-            /*
-            Mono<HashMap> response = webClient.get().uri(url).accept(MediaType.APPLICATION_JSON)
+            Mono<HashMap> response = webClient.post().uri(url).accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .bodyToMono(HashMap.class);
             MiraHealth.status = MiraHealth.RUNNING;
-             */
-            // Queue the order in an Azure Queue.
-            //return response;
-            return null;
+            return response;
         }
         HashMap<String,Object> result = new HashMap<>();
         result.put("status","failed");

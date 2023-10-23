@@ -20,7 +20,9 @@ import reactor.core.publisher.Mono;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -67,28 +69,18 @@ public class MiraSubOrderServiceTest {
 
     String order1 = "{\n" +
             "    \"orderId\": 1,\n" +
-            "    \"price\": 200.0,\n" +
-            "    \"orderTimestamp\": \"2023-01-09T14:12:13.931+00:00\",\n" +
-            "    \"customer\": {\n" +
-            "        \"customerId\": 1,\n" +
-            "        \"title\": \"Majesty\",\n" +
-            "        \"firstname\": \"Soma\",\n" +
-            "        \"lastname\": \"Leavyi\",\n" +
-            "        \"email\": \"soma.leavyi@email.org\",\n" +
-            "        \"address\": \"1 street of Majesty, Cambodia\",\n" +
-            "        \"zipCode\": \"2222\"\n" +
-            "    }\n" +
+            "    \"orderTimestamp\": \"2023-01-09T14:12:13.931+00:00\"\n" +
             "}";
 
     String order2 = "{ \"order\" : \"soma\" }";
 
-    public void mockOrderGetByIdOK() {
+    public void mockOrderSetOK() {
         Header header = Header.header("Content-Type","application/json");
         new MockServerClient("127.0.0.1",8090)
                 .when(
                         request()
-                                .withMethod("GET")
-                                .withPath("/v1/order-terminal/get-by-id")
+                                .withMethod("POST")
+                                .withPath("/v1/mira/set-order")
                 )
                 .respond(
                         response()
@@ -98,6 +90,21 @@ public class MiraSubOrderServiceTest {
                 );
     }
 
+    public void mockOrderGetByIdOK() {
+        Header header = Header.header("Content-Type","application/json");
+        new MockServerClient("127.0.0.1",8090)
+                .when(
+                        request()
+                                .withMethod("GET")
+                                .withPath("/v1/mira/get-by-id")
+                )
+                .respond(
+                        response()
+                                .withStatusCode(200)
+                                .withHeader(header)
+                                .withBody(order1)
+                );
+    }
 
     @Test
     public void testGetOrderById() {
@@ -110,8 +117,8 @@ public class MiraSubOrderServiceTest {
     @Test
     public void testFindOrderByIdAlreadyTimeout() {
         mockOrderGetByIdOK();
-        TerminalHealth.status = TerminalHealth.STOPPED;
-        TerminalHealth.failedTime = Timestamp.from(Instant.now());
+        MiraHealth.status = MiraHealth.STOPPED;
+        MiraHealth.failedTime = Timestamp.from(Instant.now());
         Mono<HashMap> result = miraSubOrderService.getOrderById(Optional.of("1") );
         HashMap<String,Object> response = result.block();
         assertEquals("failed", result.block().get("status"));
@@ -122,8 +129,8 @@ public class MiraSubOrderServiceTest {
     @Test
     public void testFindOrderByIdOldTimeout() {
         mockOrderGetByIdOK();
-        TerminalHealth.status = TerminalHealth.STOPPED;
-        TerminalHealth.failedTime = Timestamp.from(Instant.now().minusMillis(TimeUnit.MINUTES.toMillis(5)));
+        MiraHealth.status = MiraHealth.STOPPED;
+        MiraHealth.failedTime = Timestamp.from(Instant.now().minusMillis(TimeUnit.MINUTES.toMillis(5)));
         Mono<HashMap> result = miraSubOrderService.getOrderById(Optional.of("1") );
         HashMap<String,Object> response = result.block();
         assertEquals(1,response.get("orderId"));
@@ -136,7 +143,7 @@ public class MiraSubOrderServiceTest {
                 .when(
                         request()
                                 .withMethod("GET")
-                                .withPath("/v1/order-terminal/get-by-id")
+                                .withPath("/v1/mira/get-by-id")
                 )
                 .respond(
                         response()
@@ -147,7 +154,21 @@ public class MiraSubOrderServiceTest {
         Mono<HashMap> mreor = miraSubOrderService.getOrderById(Optional.of("1") );
         assert mreor.block() != null;
         assertEquals("failed", mreor.block().get("status"));
-        String errorMessage = "The operation timed out. Exception: Did not observe any item or terminal signal within 15000ms in 'source(MonoDefer)' (and no fallback has been configured). Url http://127.0.0.1:8090/v1/order-terminal/get-by-id?orderId=1.";
+        String errorMessage = "The operation timed out. Exception: Did not observe any item or terminal signal within 15000ms in 'source(MonoDefer)' (and no fallback has been configured). Url http://127.0.0.1:8090/v1/mira/get-by-id?orderId=1.";
         assertEquals(errorMessage, mreor.block().get("errorMessage"));
+    }
+
+    @Test
+    public void testSetOrderById() {
+        mockOrderSetOK();
+        List<HashMap> orders = new ArrayList<>();
+        HashMap<String,String> order = new HashMap<>();
+        order.put("productId","123");
+        order.put("quantity","1");
+        order.put("deliveryDueDate","2023-10-23");
+        orders.add(order);
+        Mono<HashMap> result = miraSubOrderService.setOrder(Optional.of(orders) );
+        HashMap<String,Object> response = result.block();
+        assertEquals(1,response.get("orderId"));
     }
 }

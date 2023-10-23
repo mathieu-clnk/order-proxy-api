@@ -2,7 +2,7 @@ server:
   port: 8081
 
 endpoints:
-  mira: "http://127.0.0.1:8090/v1/order-terminal"
+  mira: "http://127.0.0.1:8090/v1/mira"
 
 logging:
   pattern:
