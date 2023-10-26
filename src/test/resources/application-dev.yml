@@ -2,7 +2,12 @@ server:
   port: 8081
 
 endpoints:
-  mira: "http://127.0.0.1:8090/v1/mira"
+  mira:
+    url: "http://127.0.0.1:8090/v1/mira"
+    timeout: 2
+    fallback:
+      url: "http://127.0.0.1:8090/v1/queue"
+      timeout: 2
 
 logging:
   pattern:
