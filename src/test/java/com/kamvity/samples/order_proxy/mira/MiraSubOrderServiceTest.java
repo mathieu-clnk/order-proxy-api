@@ -177,6 +177,7 @@ public class MiraSubOrderServiceTest {
 
     @Test
     public void testGetOrderById() {
+        MiraHealth.status = MiraHealth.RUNNING;
         mockOrderGetByIdOK();
         Mono<HashMap> result = miraSubOrderService.getOrderById(Optional.of("1") );
         HashMap<String,Object> response = result.block();
@@ -191,7 +192,7 @@ public class MiraSubOrderServiceTest {
         Mono<HashMap> result = miraSubOrderService.getOrderById(Optional.of("1") );
         HashMap<String,Object> response = result.block();
         assertEquals("failed", result.block().get("status"));
-        assertEquals("The backend is not available, please try again later.", result.block().get("errorMessage"));
+        assertEquals("Context:<Url: http://127.0.0.1:8090/v1/mira/get-by-id?orderId=1>, error:The backend is not available, please try again later.", result.block().get("errorMessage"));
         assertEquals("BackendTimeOut",result.block().get("errorReason"));
     }
 
@@ -220,15 +221,17 @@ public class MiraSubOrderServiceTest {
                                 .withBody(order1)
                                 .withDelay(TimeUnit.MINUTES, 2)
                 );
+        MiraHealth.status = MiraHealth.RUNNING;
         Mono<HashMap> mreor = miraSubOrderService.getOrderById(Optional.of("1") );
         assert mreor.block() != null;
         assertEquals("failed", mreor.block().get("status"));
-        String errorMessage = "The operation timed out. Exception: Did not observe any item or terminal signal within 15000ms in 'source(MonoDefer)' (and no fallback has been configured). Url http://127.0.0.1:8090/v1/mira/get-by-id?orderId=1.";
+        String errorMessage = "Context:<Url: http://127.0.0.1:8090/v1/mira/get-by-id?orderId=1>, error:The operation timed out.";
         assertEquals(errorMessage, mreor.block().get("errorMessage"));
     }
 
     @Test
     public void testSetOrder() {
+        MiraHealth.status = MiraHealth.RUNNING;
         List<HashMap> orders = new ArrayList<>();
         HashMap<String,String> order = new HashMap<>();
         order.put("productId","123");
