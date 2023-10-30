@@ -16,6 +16,8 @@ import org.mockserver.matchers.Times;
 import org.mockserver.model.Body;
 import org.mockserver.model.Header;
 import org.mockserver.serialization.JsonArraySerializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -45,6 +47,7 @@ public class MiraSubOrderServiceTest {
     @Autowired
     MiraSubOrderService miraSubOrderService;
 
+    private static final Logger log = LoggerFactory.getLogger(MiraSubOrderServiceTest.class);
 
     private static ClientAndServer mockServer;
 
@@ -84,6 +87,12 @@ public class MiraSubOrderServiceTest {
             "   \"messageId\": \"123456\"\n" +
             "}";
 
+    String savedItemFallback = "{\n" +
+            "   \"status\": \"success\",\n" +
+            "   \"messageId\": \"123456\", \n" +
+            "   \"responseType\": \"fallback\" \n" +
+            "}";
+
     public void mockOrderSetOK(List<HashMap> orders) {
         Header header = Header.header("Content-Type","application/json");
         List<JSONObject> jsonObjectList = new ArrayList<JSONObject>();
@@ -104,6 +113,20 @@ public class MiraSubOrderServiceTest {
                 );
     }
 
+    public void mockOrderSetFailed() {
+        Header header = Header.header("Content-Type","application/json");
+        new MockServerClient("127.0.0.1",8090)
+                .when(
+                        request()
+                                .withMethod("POST")
+                                .withPath("/v1/mira/set-order")
+                )
+                .respond(
+                        response()
+                                .withStatusCode(503)
+                );
+    }
+
     public void mockOrderSetFallback(List<HashMap> orders) {
         Header header = Header.header("Content-Type","application/json");
         List<JSONObject> jsonObjectList = new ArrayList<JSONObject>();
@@ -120,7 +143,7 @@ public class MiraSubOrderServiceTest {
                         response()
                                 .withStatusCode(200)
                                 .withHeader(header)
-                                .withBody(savedItem)
+                                .withBody(savedItemFallback)
                 );
     }
 
@@ -170,8 +193,25 @@ public class MiraSubOrderServiceTest {
                         response()
                                 .withStatusCode(200)
                                 .withHeader(header)
-                                .withBody(savedItem)
+                                .withBody(savedItemFallback)
 
+                );
+    }
+    public void mockOrderSetRetryFailed(List<HashMap> orders) {
+        Header header = Header.header("Content-Type","application/json");
+        List<JSONObject> jsonObjectList = new ArrayList<JSONObject>();
+        orders.stream().forEach((o) -> jsonObjectList.add(new JSONObject(o)));
+        JSONArray jsonArray = new JSONArray(jsonObjectList);
+        MockServerClient mockServerClient = new MockServerClient("127.0.0.1",8090);
+        mockServerClient
+                .when(
+                        request()
+                                .withMethod("POST")
+                                .withPath("/v1/queue/save")
+                )
+                .respond(
+                        response()
+                                .withStatusCode(503)
                 );
     }
 
@@ -258,6 +298,7 @@ public class MiraSubOrderServiceTest {
         Mono<HashMap> result = miraSubOrderService.setOrder(Optional.of(orders) );
         HashMap<String,Object> response = result.block();
         assertEquals("123456",response.get("messageId"));
+        assertEquals("fallback", response.get("responseType"));
     }
 
     @Test
@@ -270,10 +311,47 @@ public class MiraSubOrderServiceTest {
         order.put("quantity","1");
         order.put("deliveryDueDate","2023-10-23");
         orders.add(order);
-        mockOrderSetOK(orders);
+        mockOrderSetFailed();
         mockOrderSetRetry(orders,2);
         Mono<HashMap> result = miraSubOrderService.setOrder(Optional.of(orders) );
         HashMap<String,Object> response = result.block();
         assertEquals("123456",response.get("messageId"));
+        assertEquals("fallback", response.get("responseType"));
+    }
+
+    @Test
+    public void testSetOrderFallbackRetryWhenOK() {
+        MiraHealth.status = MiraHealth.RUNNING;
+        List<HashMap> orders = new ArrayList<>();
+        HashMap<String,String> order = new HashMap<>();
+        order.put("productId","123");
+        order.put("quantity","1");
+        order.put("deliveryDueDate","2023-10-23");
+        orders.add(order);
+        mockOrderSetFailed();
+        mockOrderSetRetry(orders,2);
+        Mono<HashMap> result = miraSubOrderService.setOrder(Optional.of(orders) );
+        HashMap<String,Object> response = result.block();
+        assertEquals("123456",response.get("messageId"));
+        assertEquals("fallback", response.get("responseType"));
+    }
+    @Test
+    public void testSetOrderPanic() {
+        MiraHealth.status = MiraHealth.STOPPED;
+        MiraHealth.failedTime = Timestamp.from(Instant.now());
+        List<HashMap> orders = new ArrayList<>();
+        HashMap<String,String> order = new HashMap<>();
+        order.put("productId","123");
+        order.put("quantity","1");
+        order.put("deliveryDueDate","2023-10-23");
+        orders.add(order);
+        mockOrderSetFailed();
+        mockOrderSetRetry(orders,10);
+        Mono<HashMap> result = miraSubOrderService.setOrder(Optional.of(orders) );
+        try {
+            HashMap<String, Object> response = result.block();
+        }catch (Exception ex) {
+            assertEquals("Neither the order service nor its fallback have responded.",ex.getMessage());
+        }
     }
 }

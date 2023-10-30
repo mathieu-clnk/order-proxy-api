@@ -3,6 +3,7 @@ package com.kamvity.samples.order_proxy.mira;
 import com.kamvity.samples.order_proxy.service.ProviderSubOrderService;
 import io.github.resilience4j.bulkhead.annotation.Bulkhead;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.core.predicate.PredicateCreator;
 import io.github.resilience4j.ratelimiter.RequestNotPermitted;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.github.resilience4j.retry.annotation.Retry;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -27,6 +29,8 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Predicate;
+
 @Service
 public class MiraSubOrderService implements ProviderSubOrderService {
     private static final Logger log = LoggerFactory.getLogger(MiraSubOrderService.class);
@@ -43,18 +47,36 @@ public class MiraSubOrderService implements ProviderSubOrderService {
     private Integer fallbackTimeout;
 
     @Autowired
-    protected WebClient webClient;
+    public WebClient webClient;
     private final RestTemplate restTemplate = new RestTemplate();
 
+
+    private static Map<String,String> errorMap;
+
+    static
+    {
+
+        errorMap = new HashMap<>();
+        errorMap.put(NoSuchElementException.class.getName(), "Missing parameter(s) while calling the Order API.");
+        errorMap.put(TimeoutException.class.getName(),"The operation timed out.");
+        errorMap.put(NullPointerException.class.getName(), "An error occurred while during the Order API call. Maybe the order does not exists.");
+        errorMap.put(HttpServerErrorException.class.getName(),"An HTTP error occurred during the Order API call while retrieving the id.");
+        errorMap.put(RequestNotPermitted.class.getName(),"You are note permitted to retrieve the id.");
+        errorMap.put(WebClientRequestException.class.getName(),"An error occurred while during the Order API call. The backend may not be available.");
+        errorMap.put(WebClientResponseException.class.getName(),"An error occurred while during the Order API call. The backend may not be available.");
+        errorMap.put(Exception.class.getName(),"A generic error has occurred.");
+    }
     private Mono<HashMap> createGetOrderFailedResponse(Optional<String> id,String errorMessage,String errorReason, String exception) {
         if(id.isEmpty()) id = Optional.of("0");
         String context = String.format("Url: %s/get-by-id?orderId=%s",orderEndpoint, id.get());
         return createFailedResponse(context, errorMessage, errorReason, exception);
     }
-    private Mono<HashMap> createSetOrderFailedResponse(Optional<List<HashMap>> subOrders,String errorMessage,String errorReason, String exception) {
-        if(subOrders.isEmpty()) return createFailedResponse(String.format("Url: %s/get-by-id, Payload: EMPTY",orderEndpoint),errorMessage,errorReason,null);
-        String context = String.format("Url: %s, Payload; %s",orderEndpoint, subOrders.get());
-        return createFailedResponse(context, errorMessage, errorReason, exception);
+
+    private Mono<HashMap> createGetOrderFailedResponse(Optional<String> id,Exception exception) {
+        if(id.isEmpty()) id = Optional.of("0");
+        String context = String.format("Url: %s/get-by-id?orderId=%s",orderEndpoint, id.get());
+        String exceptionName = exception.getClass().getName();
+        return createFailedResponse(context, errorMap.get(exceptionName), exceptionName, exception.getMessage());
     }
     private Mono<HashMap> createFailedResponse(String context,String errorMessage,String errorReason, String exception) {
         HashMap<String,Object> result = new HashMap<>();
@@ -119,105 +141,18 @@ public class MiraSubOrderService implements ProviderSubOrderService {
     }
 
     /**
-     * Catch no such element exception may be raised when calling the backend.
-     * @param id the unique order identifier.
-     * @param ex the exception raised by the initial method.
-     * @return the order response with the error.
-     */
-    @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
-    private Mono<HashMap> getOrderFallback(Optional<String> id, NoSuchElementException ex) {
-        return createGetOrderFailedResponse(id,"Missing parameter(s) while calling the Order API.","BadParameter",null);
-    }
-
-    /**
-     * Catch timeout exception that may be raised when calling the backend.
-     * @param id the unique order identifier.
-     * @param ex the exception raised by the initial method.
-     * @return the order response with the error.
-     */
-    @ResponseStatus(HttpStatus.GATEWAY_TIMEOUT)
-    private Mono<HashMap> getOrderFallback(Optional<String> id, TimeoutException ex) {
-        MiraHealth.status = MiraHealth.STOPPED;
-        MiraHealth.failedTime = Timestamp.from(Instant.now());
-        return createGetOrderFailedResponse(id,"The operation timed out.","BackendTimeOut",ex.getMessage());
-    }
-
-    /**
-     * Catch Null pointer exception that may be raised when calling the backend.
-     * @param id the unique order identifier.
-     * @param ex the exception raised by the initial method.
-     * @return the order response with the error.
-     */
-    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
-    private Mono<HashMap> getOrderFallback(Optional<String> id, NullPointerException ex) {
-        return createGetOrderFailedResponse(id,
-                "An error occurred while during the Order API call. Maybe the order does not exists",
-                "BackendUnavailable",
-                ex.getMessage());
-    }
-    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
-    private Mono<HashMap> getOrderFallback(Optional<String> id, HttpServerErrorException ex) {
-        return createGetOrderFailedResponse(id,
-                "An HTTP error occurred during the Order API call while retrieving the id.",
-                "NetworkError",
-                ex.getMessage());
-    }
-
-    /**
-     * Catch the RequestNotPermitted exception that may be raised when reaching the rate limit.
-     * @param id the unique order identifier.
-     * @param ex the exception raised by the initial method.
-     * @return the order response with the error.
-     */
-    @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
-    private Mono<HashMap> getOrderFallback(Optional<String> id, RequestNotPermitted ex) {
-        return createGetOrderFailedResponse(id,
-                "You are note permitted to retrieve the id.",
-                "PermittedError",
-                ex.getMessage());
-    }
-
-    /**
-     * Catch the WebClientRequestException that may be raised by a network connectivity issue.
-     * An automatic retry is performed.
-     * @param id id the unique order identifier.
-     * @param ex the exception raised by the initial method.
-     * @return the order response with the error.
-     */
-    private Mono<HashMap> getOrderFallback(Optional<String> id, WebClientRequestException ex) {
-        return createGetOrderFailedResponse(id,
-                "An error occurred while during the Order API call. The backend may not be available.",
-                "BackendCallError",
-                ex.getMessage());
-    }
-
-    /**
-     * Catch the WebClientResponseException that may be raised by a backend issue.
-     * An automatic retry is performed if the backend has returned an 503.
-     * @param id id the unique order identifier.
-     * @param ex the exception raised by the initial method.
-     * @return the order response with the error.
-     */
-    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
-    private Mono<HashMap> getOrderFallback(Optional<String> id, WebClientResponseException ex) {
-        return createGetOrderFailedResponse(id,
-                "An client error while receiving the Order API response. The backend may not be available.",
-                "ResponseError",
-                ex.getMessage());
-    }
-
-    /**
-     * Catch generic exception.
+     * Catch exception.
      * @param id id the unique order identifier.
      * @param ex the exception raised by the initial method.
      * @return the order response with the error.
      */
     @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
     private Mono<HashMap> getOrderFallback(Optional<String> id, Exception ex) {
-        return createGetOrderFailedResponse(id,
-                "A generic error has occurred.",
-                "GenericError",
-                ex.getMessage());
+        if(ex.getClass() == TimeoutException.class) {
+            MiraHealth.status = MiraHealth.STOPPED;
+            MiraHealth.failedTime = Timestamp.from(Instant.now());
+        }
+        return createGetOrderFailedResponse(id,ex);
     }
 
     /**
@@ -235,66 +170,32 @@ public class MiraSubOrderService implements ProviderSubOrderService {
 
     private Mono<HashMap> queueOrder(Optional<List<HashMap>> subOrder) {
         String url = fallbackOrderEndpoint + "/save";
+        HashMap<String,Object> panicResult = new HashMap<>();
+        String error = String.format("Context:<%s>, error:%s",url,"Neither the order service nor its fallback have responded.");
+        panicResult.put("status","failed");
+        panicResult.put("errorMessage",error);
+        panicResult.put("errorReason","PanicError");
         return webClient.post().uri(url).accept(MediaType.APPLICATION_JSON)
-                .bodyValue(subOrder)
-                .retrieve()
-                .bodyToMono(HashMap.class);
+                    .bodyValue(subOrder)
+                    .retrieve()
+                    .onStatus(HttpStatus.SERVICE_UNAVAILABLE::equals,response -> {
+                        log.error("CRITICAL STATUS. Neither the order service nor its fallback have responded.");
+                        return Mono.error(new RuntimeException("Neither the order service nor its fallback have responded."));
+                    })
+                    .bodyToMono(HashMap.class);
+
     }
 
-    @Retry(name = CB_ORDER_CONFIG, fallbackMethod = "setOrderPanic")
+    @Retry(name = CB_ORDER_CONFIG)
     @Bulkhead(name = CB_ORDER_CONFIG)
     private Mono<HashMap> setOrderFallback(Optional<List<HashMap>> subOrder) {
         return queueOrder(subOrder);
     }
 
-    @Retry(name = CB_ORDER_CONFIG, fallbackMethod = "setOrderPanic")
+    @Retry(name = CB_ORDER_CONFIG)
     @Bulkhead(name = CB_ORDER_CONFIG)
     private Mono<HashMap> setOrderFallback(Optional<List<HashMap>> subOrder, Exception ex) {
         return queueOrder(subOrder);
     }
 
-    @Retry(name = CB_ORDER_CONFIG, fallbackMethod = "setOrderPanic")
-    @Bulkhead(name = CB_ORDER_CONFIG)
-    private Mono<HashMap> setOrderFallback(Optional<List<HashMap>> subOrder, NoSuchElementException ex) {
-        return queueOrder(subOrder);
-    }
-    @Retry(name = CB_ORDER_CONFIG, fallbackMethod = "setOrderPanic")
-    @Bulkhead(name = CB_ORDER_CONFIG)
-    private Mono<HashMap> setOrderFallback(Optional<List<HashMap>> subOrder, TimeoutException ex) {
-        return queueOrder(subOrder);
-    }
-    @Retry(name = CB_ORDER_CONFIG, fallbackMethod = "setOrderPanic")
-    @Bulkhead(name = CB_ORDER_CONFIG)
-    private Mono<HashMap> setOrderFallback(Optional<List<HashMap>> subOrder, NullPointerException ex) {
-        return queueOrder(subOrder);
-    }
-    @Retry(name = CB_ORDER_CONFIG, fallbackMethod = "setOrderPanic")
-    @Bulkhead(name = CB_ORDER_CONFIG)
-    private Mono<HashMap> setOrderFallback(Optional<List<HashMap>> subOrder, HttpServerErrorException ex) {
-        return queueOrder(subOrder);
-    }
-    @Retry(name = CB_ORDER_CONFIG, fallbackMethod = "setOrderPanic")
-    @Bulkhead(name = CB_ORDER_CONFIG)
-    private Mono<HashMap> setOrderFallback(Optional<List<HashMap>> subOrder, RequestNotPermitted ex) {
-        return queueOrder(subOrder);
-    }
-    @Retry(name = CB_ORDER_CONFIG, fallbackMethod = "setOrderPanic")
-    @Bulkhead(name = CB_ORDER_CONFIG)
-    private Mono<HashMap> setOrderFallback(Optional<List<HashMap>> subOrder, WebClientRequestException ex) {
-        return queueOrder(subOrder);
-    }
-
-    @Retry(name = CB_ORDER_CONFIG, fallbackMethod = "setOrderPanic")
-    @Bulkhead(name = CB_ORDER_CONFIG)
-    private Mono<HashMap> setOrderFallback(Optional<List<HashMap>> subOrder, WebClientResponseException ex) {
-        return queueOrder(subOrder);
-    }
-
-    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
-    private Mono<HashMap> setOrderPanic(Optional<List<HashMap>> subOrder, Exception ex) {
-        return createSetOrderFailedResponse(subOrder,
-                "Neither the order service nor its fallback have responded.",
-                "PanicError",
-                null);
-    }
 }

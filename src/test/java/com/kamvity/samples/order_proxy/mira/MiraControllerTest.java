@@ -111,7 +111,7 @@ public class MiraControllerTest {
     @Test
     public void testGetOrderId() {
         mockOrderGetByIdOK();
-        String url = "http://localhost:" + port+"/api/mira/orders/get_order_id?id=1";
+        String url = "http://localhost:" + port+"/api/v1/mira/orders/get_order_id?id=1";
         ResponseEntity<HashMap> re = restTemplate.getForEntity(url, HashMap.class);
         assertEquals(HttpStatus.OK,re.getStatusCode());
     }
