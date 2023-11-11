@@ -21,20 +21,20 @@ public interface ProviderSubOrderService {
      * @param id            : identifier used by the provider.
      * @return the sub-order when it has been found.
      */
-    public Mono<HashMap> getOrderById(Optional<String> id);
+    public Mono<HashMap<String,Object>> getOrderById(String id);
 
     /**
      * Place a sub-order into the provider's system.
      * @param subOrder: The sub-order to send.
      * @return the result of the operation and the identifier when it has succeeded.
      */
-    public Mono<HashMap> setOrder(Optional<List<HashMap>> subOrder);
+    public Mono<HashMap<String,Object>> setOrder(List<HashMap<String,Object>> subOrder);
 
     /**
      * Cancel a sub-order by its id.
      * @param id: identifier used by the provider.
      * @return the result of the operation.
      */
-    public Mono<HashMap> cancelOrderById(Optional<String> id);
+    public Mono<HashMap<String,Object>> cancelOrderById(Optional<String> id);
 
 }

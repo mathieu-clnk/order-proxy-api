@@ -3,9 +3,6 @@ package com.kamvity.samples.order_proxy.mira;
 import com.kamvity.samples.order_proxy.config.AsyncConfig;
 import com.kamvity.samples.order_proxy.config.AsyncTraceContextConfig;
 import com.kamvity.samples.order_proxy.config.OrderProxyConfig;
-import io.micrometer.observation.Observation;
-import io.micrometer.observation.ObservationRegistry;
-import io.micrometer.tracing.Tracer;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.AfterAll;
@@ -20,16 +17,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
-import reactor.core.publisher.Hooks;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -39,7 +33,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockserver.integration.ClientAndServer.startClientAndServer;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
-import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
 @AutoConfigureObservability
 @ExtendWith(SpringExtension.class)
@@ -48,7 +41,7 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
 @ActiveProfiles("dev")
 public class MiraControllerTest {
     @Value(value="${local.server.port}")
-    private int port = 0;
+    private final int port = 0;
     @Autowired
     private TestRestTemplate restTemplate;
 
