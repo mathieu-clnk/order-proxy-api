@@ -8,6 +8,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 @Configuration(proxyBeanMethods = false)
 public class AsyncConfig {
 
+    @SuppressWarnings("unused")
     @Bean(name = "taskExecutor")
     public ThreadPoolTaskExecutor getAsyncExecutor() {
         final ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

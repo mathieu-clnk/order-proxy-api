@@ -1,6 +1,5 @@
 package com.kamvity.samples.order_proxy.mira;
 
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 
+@SuppressWarnings("unused")
 @RestController
 @RequestMapping("/api/v1/mira/orders")
 public class MiraController {
@@ -21,6 +21,7 @@ public class MiraController {
         this.miraSubOrderService = miraSubOrderService;
     }
     private static final Logger log = LoggerFactory.getLogger(MiraController.class);
+    @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
     @GetMapping("/get-order-id")
     public Mono<HashMap<String,Object>> getOrderById(@RequestParam Optional<String> id) {
         if (id.isEmpty()) return missingParameter();
@@ -28,6 +29,7 @@ public class MiraController {
         return miraSubOrderService.getOrderById(id.get());
     }
 
+    @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
     @PostMapping("/set-order")
     public Mono<HashMap<String,Object>> setOrder(@RequestBody Optional<List<HashMap<String,Object>>> orders) {
         if (orders.isEmpty()) return  missingParameter();

@@ -5,11 +5,16 @@ import java.time.Instant;
 
 public class MiraHealth {
 
-    public static Timestamp failedTime;
-    public static String status;
+    private static Timestamp failedTime;
+    private static String status;
     public static final String RUNNING = "running";
     public static final String STOPPED = "stopped";
 
+    private MiraHealth() {throw new IllegalStateException("Utility class");}
+
+    public static String getStatus() {
+        return status;
+    }
     public static synchronized void setRunning() {
         status = RUNNING;
     }
@@ -18,4 +23,13 @@ public class MiraHealth {
         status = STOPPED;
         failedTime = Timestamp.from(Instant.now());
     }
+
+    public static Timestamp getFailedTime() {
+        return failedTime;
+    }
+
+    protected static void setFailedTime(Timestamp timestamp) {
+        failedTime = timestamp;
+    }
+
 }

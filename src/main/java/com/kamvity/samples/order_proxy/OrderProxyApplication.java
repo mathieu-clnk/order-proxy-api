@@ -12,7 +12,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Hooks;
 
 import java.time.Duration;
-
+@SuppressWarnings("unused")
 @SpringBootApplication
 public class OrderProxyApplication {
 
@@ -34,8 +34,8 @@ public class OrderProxyApplication {
                         .waitDurationInOpenState(Duration.ofSeconds(5)));
     }
     @Bean
-    public void checkBackendsHealth() {
+    public static void checkBackendsHealth() {
         TerminalHealth.status = TerminalHealth.RUNNING;
-        MiraHealth.status = MiraHealth.RUNNING;
+        MiraHealth.setRunning();
     }
 }

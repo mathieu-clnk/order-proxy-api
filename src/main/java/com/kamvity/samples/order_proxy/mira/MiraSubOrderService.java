@@ -92,8 +92,8 @@ public class MiraSubOrderService implements ProviderSubOrderService {
         if(id.isEmpty()) return createFailedResponse(orderEndpoint,"Received an empty id while getting the order Id.","ParameterError",null);
         log.info("Request received getOrderById with the id {}",id);
         String url = orderEndpoint + "/get-by-id?orderId=" + id;
-        if(MiraHealth.status.equals(MiraHealth.RUNNING) ||
-                MiraHealth.failedTime.before(Timestamp.from(Instant.now().minusMillis(TimeUnit.MINUTES.toMillis(timeout))))) {
+        if(MiraHealth.getStatus().equals(MiraHealth.RUNNING) ||
+                MiraHealth.getFailedTime().before(Timestamp.from(Instant.now().minusMillis(TimeUnit.MINUTES.toMillis(timeout))))) {
             Mono<HashMap<String,Object>> response = webClient.get().uri(url).accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<>() {});
@@ -111,8 +111,8 @@ public class MiraSubOrderService implements ProviderSubOrderService {
     public Mono<HashMap<String,Object>> setOrder(List<HashMap<String,Object>> subOrder) {
 
         if (subOrder.isEmpty()) return getPanicResult();
-        if(MiraHealth.status.equals(MiraHealth.RUNNING) ||
-                MiraHealth.failedTime.before(Timestamp.from(Instant.now().minusMillis(TimeUnit.MINUTES.toMillis(timeout))))) {
+        if(MiraHealth.getStatus().equals(MiraHealth.RUNNING) ||
+                MiraHealth.getFailedTime().before(Timestamp.from(Instant.now().minusMillis(TimeUnit.MINUTES.toMillis(timeout))))) {
             String url = orderEndpoint + "/set-order";
             Mono<HashMap<String,Object>> response = webClient.post().uri(url).accept(MediaType.APPLICATION_JSON)
                     .bodyValue(subOrder)
