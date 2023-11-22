@@ -32,6 +32,50 @@ public class YAMLConfig {
     }
 
     public class Mira {
+        public Read getRead() {
+            return read;
+        }
+
+        public void setRead(Read read) {
+            this.read = read;
+        }
+
+        private Read read = new Read();
+
+        public Write getWrite() {
+            return write;
+        }
+
+        public void setWrite(Write write) {
+            this.write = write;
+        }
+
+        private Write write = new Write();
+    }
+
+    public class Read {
+        public String getUrl() {
+            return url;
+        }
+
+        public void setUrl(String url) {
+            this.url = url;
+        }
+
+        private String url;
+
+        public Integer getTimeout() {
+            return timeout;
+        }
+
+        public void setTimeout(Integer timeout) {
+            this.timeout = timeout;
+        }
+
+        private Integer timeout;
+
+    }
+    public class Write {
 
         public Fallback getFallback() {
             return fallback;

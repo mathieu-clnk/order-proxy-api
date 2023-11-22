@@ -32,18 +32,23 @@ import java.util.concurrent.TimeoutException;
 public class MiraSubOrderService implements ProviderSubOrderService {
     private static final Logger log = LoggerFactory.getLogger(MiraSubOrderService.class);
     private static final String CB_ORDER_CONFIG = "orderMiraConfig";
-    private final String orderEndpoint;
-    private final Integer timeout;
+    private final String readOrderEndpoint;
+    private final Integer readTimeout;
 
-    private final String fallbackOrderEndpoint;
+    private final String writeOrderEndpoint;
+    private final Integer writeTimeout;
+
+    private final String writeFallbackOrderEndpoint;
     private final WebClient webClient;
 
     @Autowired
     public MiraSubOrderService(WebClient webClient, YAMLConfig config) {
         this.webClient = webClient;
-        this.orderEndpoint = config.getEndpoints().getMira().getUrl();
-        this.timeout = config.getEndpoints().getMira().getTimeout();
-        this.fallbackOrderEndpoint = config.getEndpoints().getMira().getFallback().getUrl();
+        this.readOrderEndpoint = config.getEndpoints().getMira().getRead().getUrl();
+        this.readTimeout = config.getEndpoints().getMira().getRead().getTimeout();
+        this.writeOrderEndpoint = config.getEndpoints().getMira().getWrite().getUrl();
+        this.writeTimeout = config.getEndpoints().getMira().getWrite().getTimeout();
+        this.writeFallbackOrderEndpoint = config.getEndpoints().getMira().getWrite().getFallback().getUrl();
     }
     private static final Map<String,String> errorMap;
 
@@ -62,7 +67,7 @@ public class MiraSubOrderService implements ProviderSubOrderService {
     }
 
     private Mono<HashMap<String,Object>> createGetOrderFailedResponse(String id, Exception exception) {
-        String context = String.format("Url: %s/get-by-id?orderId=%s",orderEndpoint, id);
+        String context = String.format("Url: %s/get-by-id?orderId=%s",readOrderEndpoint, id);
         String exceptionName = exception.getClass().getName();
         return createFailedResponse(context, errorMap.get(exceptionName), exceptionName, exception.getMessage());
     }
@@ -89,11 +94,11 @@ public class MiraSubOrderService implements ProviderSubOrderService {
     @RateLimiter(name = CB_ORDER_CONFIG, fallbackMethod = "getOrderFallback")
     @Override
     public Mono<HashMap<String,Object>> getOrderById(String id) {
-        if(id.isEmpty()) return createFailedResponse(orderEndpoint,"Received an empty id while getting the order Id.","ParameterError",null);
+        if(id.isEmpty()) return createFailedResponse(readOrderEndpoint,"Received an empty id while getting the order Id.","ParameterError",null);
         log.info("Request received getOrderById with the id {}",id);
-        String url = orderEndpoint + "/get-by-id?orderId=" + id;
+        String url = readOrderEndpoint + "/get-by-id?orderId=" + id;
         if(MiraHealth.getStatus().equals(MiraHealth.RUNNING) ||
-                MiraHealth.getFailedTime().before(Timestamp.from(Instant.now().minusMillis(TimeUnit.MINUTES.toMillis(timeout))))) {
+                MiraHealth.getFailedTime().before(Timestamp.from(Instant.now().minusMillis(TimeUnit.MINUTES.toMillis(readTimeout))))) {
             Mono<HashMap<String,Object>> response = webClient.get().uri(url).accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<>() {});
@@ -112,8 +117,8 @@ public class MiraSubOrderService implements ProviderSubOrderService {
 
         if (subOrder.isEmpty()) return getPanicResult();
         if(MiraHealth.getStatus().equals(MiraHealth.RUNNING) ||
-                MiraHealth.getFailedTime().before(Timestamp.from(Instant.now().minusMillis(TimeUnit.MINUTES.toMillis(timeout))))) {
-            String url = orderEndpoint + "/set-order";
+                MiraHealth.getFailedTime().before(Timestamp.from(Instant.now().minusMillis(TimeUnit.MINUTES.toMillis(writeTimeout))))) {
+            String url = writeOrderEndpoint + "/set-order";
             Mono<HashMap<String,Object>> response = webClient.post().uri(url).accept(MediaType.APPLICATION_JSON)
                     .bodyValue(subOrder)
                     .retrieve()
@@ -154,7 +159,7 @@ public class MiraSubOrderService implements ProviderSubOrderService {
     }
 
     private Mono<HashMap<String,Object>> queueOrder(List<HashMap<String, Object>> subOrder) {
-        String url = fallbackOrderEndpoint + "/save";
+        String url = writeFallbackOrderEndpoint + "/save";
 
         return webClient.post().uri(url).accept(MediaType.APPLICATION_JSON)
                     .bodyValue(subOrder)
