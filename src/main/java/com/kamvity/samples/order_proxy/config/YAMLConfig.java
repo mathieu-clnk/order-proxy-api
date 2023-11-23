@@ -53,7 +53,8 @@ public class YAMLConfig {
         private Write write = new Write();
     }
 
-    public class Read {
+    public abstract class Endpoint {
+
         public String getUrl() {
             return url;
         }
@@ -75,7 +76,11 @@ public class YAMLConfig {
         private Integer timeout;
 
     }
-    public class Write {
+
+    public class Read extends Endpoint{
+
+    }
+    public class Write extends Endpoint{
 
         public Fallback getFallback() {
             return fallback;
@@ -86,47 +91,10 @@ public class YAMLConfig {
         }
 
         private Fallback fallback = new Fallback();
-        public String getUrl() {
-            return url;
-        }
-
-        public void setUrl(String url) {
-            this.url = url;
-        }
-
-        private String url;
-
-        public Integer getTimeout() {
-            return timeout;
-        }
-
-        public void setTimeout(Integer timeout) {
-            this.timeout = timeout;
-        }
-
-        private Integer timeout;
 
     }
 
-    public class Fallback {
-        public String getUrl() {
-            return url;
-        }
+    public class Fallback extends Endpoint{
 
-        public void setUrl(String url) {
-            this.url = url;
-        }
-
-        private String url;
-
-        public Integer getTimeout() {
-            return timeout;
-        }
-
-        public void setTimeout(Integer timeout) {
-            this.timeout = timeout;
-        }
-
-        private Integer timeout;
     }
 }
